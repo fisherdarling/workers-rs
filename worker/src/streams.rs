@@ -17,6 +17,12 @@ pub struct ByteStream {
     pub(crate) inner: IntoStream<'static>,
 }
 
+impl ByteStream {
+    pub fn new(inner: IntoStream<'static>) -> Self {
+        Self { inner }
+    }
+}
+
 impl Stream for ByteStream {
     type Item = Result<Vec<u8>>;
 
