@@ -90,3 +90,6 @@ impl From<serde_json::Error> for Error {
         Error::SerdeJsonError(e)
     }
 }
+
+unsafe impl Send for Error {}
+unsafe impl Sync for Error {}

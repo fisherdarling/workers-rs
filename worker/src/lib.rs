@@ -3,9 +3,15 @@
 
 #[doc(hidden)]
 use std::result::Result as StdResult;
+use std::{
+    pin::Pin,
+    task::{self, Poll},
+};
 
 #[doc(hidden)]
 pub use async_trait;
+use fragile::Fragile;
+use futures_util::Future;
 #[doc(hidden)]
 pub use js_sys;
 pub use url::Url;
@@ -72,3 +78,22 @@ pub use ::http_body;
 
 pub type HttpRequest = ::http::Request<ByteStream>;
 pub type HttpResponse<B> = ::http::Response<B>;
+
+/// Turns a `!Send` future into a `Send` one. Based on the wgpu-rs crate.
+pub(crate) struct MakeSendFuture<F>(Fragile<F>);
+
+impl<F> MakeSendFuture<F> {
+    pub fn new(future: F) -> Self {
+        Self(Fragile::new(future))
+    }
+}
+
+impl<F: Future> Future for MakeSendFuture<F> {
+    type Output = F::Output;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut task::Context) -> Poll<Self::Output> {
+        unsafe { self.map_unchecked_mut(|s| s.0.get_mut()) }.poll(cx)
+    }
+}
+
+unsafe impl<F> Send for MakeSendFuture<F> {}

@@ -245,3 +245,5 @@ impl Request {
         &self.edge_request
     }
 }
+
+unsafe impl Send for Request {}

@@ -59,6 +59,9 @@ extern "C" {
     pub fn fetch_with_str_internal(this: &ObjectStub, url: &str) -> ::js_sys::Promise;
 }
 
+unsafe impl Send for ObjectStub {}
+unsafe impl Sync for ObjectStub {}
+
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen (extends = ::js_sys::Object, js_name = DurableObjectStorage)]

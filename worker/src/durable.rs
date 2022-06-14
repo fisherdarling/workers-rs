@@ -18,7 +18,7 @@ use crate::{
     error::Error,
     request::Request,
     response::Response,
-    Result,
+    MakeSendFuture, Result,
 };
 
 use async_trait::async_trait;
@@ -41,18 +41,28 @@ pub struct Stub {
     inner: ObjectStub,
 }
 
+unsafe impl Send for Stub {}
+
 impl Stub {
     /// Send an internal Request to the Durable Object to which the stub points.
     pub async fn fetch_with_request(&self, req: Request) -> Result<Response> {
-        let promise = self.inner.fetch_with_request_internal(req.inner());
-        let response = JsFuture::from(promise).await?;
+        let fut = {
+            let promise = self.inner.fetch_with_request_internal(req.inner());
+            MakeSendFuture::new(JsFuture::from(promise))
+        };
+
+        let response = fut.await?;
         Ok(response.dyn_into::<EdgeResponse>()?.into())
     }
 
     /// Construct a Request from a URL to the Durable Object to which the stub points.
     pub async fn fetch_with_str(&self, url: &str) -> Result<Response> {
-        let promise = self.inner.fetch_with_str_internal(url);
-        let response = JsFuture::from(promise).await?;
+        let fut = {
+            let promise = self.inner.fetch_with_str_internal(url);
+            MakeSendFuture::new(JsFuture::from(promise))
+        };
+
+        let response = fut.await?;
         Ok(response.dyn_into::<EdgeResponse>()?.into())
     }
 }
@@ -63,6 +73,8 @@ impl Stub {
 pub struct ObjectNamespace {
     inner: EdgeObjectNamespace,
 }
+
+unsafe impl Send for ObjectNamespace {}
 
 impl ObjectNamespace {
     /// This method derives a unique object ID from the given name string. It will always return the
@@ -136,6 +148,8 @@ pub struct ObjectId<'a> {
     inner: JsObjectId,
     namespace: Option<&'a ObjectNamespace>,
 }
+
+unsafe impl Send for ObjectId<'_> {}
 
 impl ObjectId<'_> {
     /// Get a Stub for the Durable Object instance identified by this ObjectId.

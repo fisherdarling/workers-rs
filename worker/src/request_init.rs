@@ -54,6 +54,8 @@ impl RequestInit {
     }
 }
 
+unsafe impl Send for RequestInit {}
+
 impl From<&RequestInit> for worker_sys::RequestInit {
     fn from(req: &RequestInit) -> Self {
         let mut inner = worker_sys::RequestInit::new();

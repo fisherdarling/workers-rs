@@ -48,6 +48,9 @@ impl Env {
     }
 }
 
+unsafe impl Send for Env {}
+unsafe impl Sync for Env {}
+
 pub trait EnvBinding: Sized + JsCast {
     const TYPE_NAME: &'static str;
 

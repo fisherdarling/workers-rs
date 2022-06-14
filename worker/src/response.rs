@@ -20,6 +20,9 @@ pub enum ResponseBody {
     Stream(ReadableStream),
 }
 
+unsafe impl Send for ResponseBody {}
+unsafe impl Sync for ResponseBody {}
+
 const CONTENT_TYPE: &str = "content-type";
 
 /// A [Response](https://developer.mozilla.org/en-US/docs/Web/API/Response) representation for
@@ -31,6 +34,8 @@ pub struct Response {
     status_code: u16,
     websocket: Option<WebSocket>,
 }
+
+unsafe impl Send for Response {}
 
 impl Response {
     /// Create a `Response` using `B` as the body encoded as JSON. Sets the associated
