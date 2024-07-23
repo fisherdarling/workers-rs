@@ -40,4 +40,10 @@ extern "C" {
 
     #[wasm_bindgen(method, catch, getter, js_name=certSubjectDNRFC2253)]
     pub fn cert_subject_dn_rfc2253(this: &TlsClientAuth) -> Result<String, JsValue>;
+
+    #[wasm_bindgen(method, catch, getter, js_name=certSKI)]
+    pub fn cert_ski(this: &TlsClientAuth) -> Result<String, JsValue>;
+
+    #[wasm_bindgen(method, catch, getter, js_name=certIssuerSKI)]
+    pub fn cert_issuer_ski(this: &TlsClientAuth) -> Result<String, JsValue>;
 }

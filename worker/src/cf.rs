@@ -250,6 +250,14 @@ impl TlsClientAuth {
     pub fn cert_subject_dn_rfc2253(&self) -> String {
         self.inner.cert_subject_dn_rfc2253().unwrap()
     }
+
+    pub fn cert_ski(&self) -> String {
+        self.inner.cert_ski().unwrap()
+    }
+
+    pub fn cert_issuer_ski(&self) -> String {
+        self.inner.cert_issuer_ski().unwrap()
+    }
 }
 
 impl From<worker_sys::TlsClientAuth> for TlsClientAuth {
