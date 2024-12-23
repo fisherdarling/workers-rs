@@ -117,6 +117,12 @@ impl From<JsValue> for FormData {
     }
 }
 
+impl From<FormData> for JsValue {
+    fn from(fd: FormData) -> Self {
+        JsValue::from(fd.0)
+    }
+}
+
 impl From<HashMap<&dyn AsRef<&str>, &dyn AsRef<&str>>> for FormData {
     fn from(m: HashMap<&dyn AsRef<&str>, &dyn AsRef<&str>>) -> Self {
         let mut formdata = FormData::new();
