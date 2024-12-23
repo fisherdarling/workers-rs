@@ -1,7 +1,7 @@
 use wasm_bindgen::{JsCast, JsValue};
 use worker_sys::types::Hyperdrive as HyperdriveSys;
 
-use crate::EnvBinding;
+use crate::{EnvBinding, Result, Socket};
 
 pub struct Hyperdrive(HyperdriveSys);
 
@@ -39,6 +39,10 @@ impl From<Hyperdrive> for JsValue {
 }
 
 impl Hyperdrive {
+    pub fn connect(&self) -> Result<Socket> {
+        Ok(Socket::new(self.0.connect()?))
+    }
+
     pub fn connection_string(&self) -> String {
         self.0.connection_string()
     }
