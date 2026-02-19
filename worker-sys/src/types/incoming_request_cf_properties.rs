@@ -12,10 +12,10 @@ extern "C" {
     pub fn colo(this: &IncomingRequestCfProperties) -> Result<String, JsValue>;
 
     #[wasm_bindgen(method, catch, getter)]
-    pub fn asn(this: &IncomingRequestCfProperties) -> Result<u32, JsValue>;
+    pub fn asn(this: &IncomingRequestCfProperties) -> Result<Option<u32>, JsValue>;
 
     #[wasm_bindgen(method, catch, getter, js_name=asOrganization)]
-    pub fn as_organization(this: &IncomingRequestCfProperties) -> Result<String, JsValue>;
+    pub fn as_organization(this: &IncomingRequestCfProperties) -> Result<Option<String>, JsValue>;
 
     #[wasm_bindgen(method, catch, getter)]
     pub fn country(this: &IncomingRequestCfProperties) -> Result<Option<String>, JsValue>;
@@ -60,6 +60,9 @@ extern "C" {
 
     #[wasm_bindgen(method, catch, getter, js_name=regionCode)]
     pub fn region_code(this: &IncomingRequestCfProperties) -> Result<Option<String>, JsValue>;
+
+    #[wasm_bindgen(method, catch, getter, js_name=hostMetadata)]
+    pub fn host_metadata(this: &IncomingRequestCfProperties) -> Result<JsValue, JsValue>;
 
     #[wasm_bindgen(method, catch, getter)]
     pub fn timezone(this: &IncomingRequestCfProperties) -> Result<String, JsValue>;

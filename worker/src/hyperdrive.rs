@@ -3,6 +3,7 @@ use worker_sys::types::Hyperdrive as HyperdriveSys;
 
 use crate::{EnvBinding, Result, Socket};
 
+#[derive(Debug)]
 pub struct Hyperdrive(HyperdriveSys);
 
 unsafe impl Send for Hyperdrive {}

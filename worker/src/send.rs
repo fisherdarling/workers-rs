@@ -11,6 +11,7 @@ use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
+#[derive(Debug)]
 #[pin_project]
 /// Wrap any future to make it `Send`.
 ///
@@ -38,6 +39,29 @@ impl<F: Future> Future for SendFuture<F> {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
         this.inner.poll(cx)
+    }
+}
+
+/// Trait for SendFuture. Implemented for any type that implements Future.
+///
+/// ```rust
+/// let fut = JsFuture::from(promise).into_send();
+/// fut.await
+/// ```
+pub trait IntoSendFuture {
+    type Output;
+    fn into_send(self) -> SendFuture<Self>
+    where
+        Self: Sized;
+}
+
+impl<F, T> IntoSendFuture for F
+where
+    F: Future<Output = T>,
+{
+    type Output = T;
+    fn into_send(self) -> SendFuture<Self> {
+        SendFuture::new(self)
     }
 }
 

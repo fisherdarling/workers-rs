@@ -5,7 +5,7 @@ use crate::Socket;
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(extends=js_sys::Object)]
-    #[derive(Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub type Hyperdrive;
 
     #[wasm_bindgen(method, getter, js_name=connectionString, catch)]

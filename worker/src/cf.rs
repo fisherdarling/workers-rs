@@ -33,12 +33,12 @@ impl Cf {
     }
 
     /// The Autonomous System Number (ASN) of the request, e.g. `395747`
-    pub fn asn(&self) -> u32 {
+    pub fn asn(&self) -> Option<u32> {
         self.inner.asn().unwrap()
     }
 
     /// The Autonomous System organization name of the request, e.g. `Cloudflare, Inc.`
-    pub fn as_organization(&self) -> String {
+    pub fn as_organization(&self) -> Option<String> {
         self.inner.as_organization().unwrap()
     }
 
@@ -172,6 +172,18 @@ impl Cf {
     pub fn is_eu_country(&self) -> bool {
         self.inner.is_eu_country().unwrap() == Some("1".to_string())
     }
+
+    pub fn host_metadata<T: serde::de::DeserializeOwned>(&self) -> crate::Result<Option<T>> {
+        let host_metadata = self.inner.host_metadata()?;
+        if host_metadata.is_undefined() {
+            Ok(None)
+        } else {
+            serde_wasm_bindgen::from_value(host_metadata)
+                .map(Some)
+                .map_err(|e| wasm_bindgen::JsValue::from(e.to_string()))
+        }
+        .map_err(crate::Error::from)
+    }
 }
 
 /// Browser-requested prioritization information.
@@ -262,7 +274,7 @@ impl From<worker_sys::TlsClientAuth> for TlsClientAuth {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CfResponseProperties(pub(crate) js_sys::Object);
 
 impl CfResponseProperties {

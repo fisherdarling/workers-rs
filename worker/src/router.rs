@@ -2,15 +2,15 @@ use std::{collections::HashMap, future::Future, rc::Rc};
 
 use futures_util::future::LocalBoxFuture;
 use matchit::{Match, Router as MatchItRouter};
-use worker_kv::KvStore;
 
 use crate::{
     durable::ObjectNamespace,
     env::{Env, Secret, Var},
     http::Method,
+    rate_limit::RateLimiter,
     request::Request,
     response::Response,
-    Bucket, Fetcher, Result,
+    Bucket, Fetcher, KvStore, Result,
 };
 
 type HandlerFn<D> = fn(Request, RouteContext<D>) -> Result<Response>;
@@ -19,6 +19,7 @@ type AsyncHandlerFn<'a, D> =
 
 /// Represents the URL parameters parsed from the path, e.g. a route with "/user/:id" pattern would
 /// contain a single "id" key.
+#[derive(Debug)]
 pub struct RouteParams(HashMap<String, String>);
 
 impl RouteParams {
@@ -48,8 +49,15 @@ pub struct Router<'a, D> {
     data: D,
 }
 
+impl core::fmt::Debug for Router<'_, ()> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Router").finish()
+    }
+}
+
 /// Container for a route's parsed parameters, data, and environment bindings from the Runtime (such
 /// as KV Stores, Durable Objects, Variables, and Secrets).
+#[derive(Debug)]
 pub struct RouteContext<D> {
     pub data: D,
     pub env: Env,
@@ -57,19 +65,6 @@ pub struct RouteContext<D> {
 }
 
 impl<D> RouteContext<D> {
-    /// Get a reference to the generic associated data provided to the `Router`.
-    #[deprecated(since = "0.0.8", note = "please use the `data` field directly")]
-    pub fn data(&self) -> &D {
-        &self.data
-    }
-
-    /// Get the `Env` for this Worker. Typically users should opt for the `secret`, `var`, `kv` and
-    /// `durable_object` methods on the `RouteContext` instead.
-    #[deprecated(since = "0.0.8", note = "please use the `env` field directly")]
-    pub fn get_env(self) -> Env {
-        self.env
-    }
-
     /// Get a Secret value associated with this Worker, should one exist.
     pub fn secret(&self, binding: &str) -> Result<Secret> {
         self.env.secret(binding)
@@ -111,9 +106,14 @@ impl<D> RouteContext<D> {
     pub fn d1(&self, binding: &str) -> Result<crate::D1Database> {
         self.env.d1(binding)
     }
+
+    /// Access a Rate Limiter by the binding name configured in your wrangler.toml file.
+    pub fn rate_limiter(&self, binding: &str) -> Result<RateLimiter> {
+        self.env.rate_limiter(binding)
+    }
 }
 
-impl<'a> Router<'a, ()> {
+impl Router<'_, ()> {
     /// Construct a new `Router`. Or, call `Router::with_data(D)` to add arbitrary data that will be
     /// available to your various routes.
     pub fn new() -> Self {
@@ -173,6 +173,12 @@ impl<'a, D: 'a> Router<'a, D> {
         self
     }
 
+    /// Register an HTTP handler that will exclusively respond to REPORT requests.
+    pub fn report(mut self, pattern: &str, func: HandlerFn<D>) -> Self {
+        self.add_handler(pattern, Handler::Sync(func), vec![Method::Report]);
+        self
+    }
+
     /// Register an HTTP handler that will respond to any requests.
     pub fn on(mut self, pattern: &str, func: HandlerFn<D>) -> Self {
         self.add_handler(pattern, Handler::Sync(func), Method::all());
@@ -190,7 +196,11 @@ impl<'a, D: 'a> Router<'a, D> {
 
     /// Register an HTTP handler that will exclusively respond to HEAD requests. Enables the use of
     /// `async/await` syntax in the callback.
-    pub fn head_async<T>(mut self, pattern: &str, func: fn(Request, RouteContext<D>) -> T) -> Self
+    pub fn head_async<T>(
+        mut self,
+        pattern: &str,
+        func: impl Fn(Request, RouteContext<D>) -> T + 'a,
+    ) -> Self
     where
         T: Future<Output = Result<Response>> + 'a,
     {
@@ -204,7 +214,11 @@ impl<'a, D: 'a> Router<'a, D> {
 
     /// Register an HTTP handler that will exclusively respond to GET requests. Enables the use of
     /// `async/await` syntax in the callback.
-    pub fn get_async<T>(mut self, pattern: &str, func: fn(Request, RouteContext<D>) -> T) -> Self
+    pub fn get_async<T>(
+        mut self,
+        pattern: &str,
+        func: impl Fn(Request, RouteContext<D>) -> T + 'a,
+    ) -> Self
     where
         T: Future<Output = Result<Response>> + 'a,
     {
@@ -218,7 +232,11 @@ impl<'a, D: 'a> Router<'a, D> {
 
     /// Register an HTTP handler that will exclusively respond to POST requests. Enables the use of
     /// `async/await` syntax in the callback.
-    pub fn post_async<T>(mut self, pattern: &str, func: fn(Request, RouteContext<D>) -> T) -> Self
+    pub fn post_async<T>(
+        mut self,
+        pattern: &str,
+        func: impl Fn(Request, RouteContext<D>) -> T + 'a,
+    ) -> Self
     where
         T: Future<Output = Result<Response>> + 'a,
     {
@@ -232,7 +250,11 @@ impl<'a, D: 'a> Router<'a, D> {
 
     /// Register an HTTP handler that will exclusively respond to PUT requests. Enables the use of
     /// `async/await` syntax in the callback.
-    pub fn put_async<T>(mut self, pattern: &str, func: fn(Request, RouteContext<D>) -> T) -> Self
+    pub fn put_async<T>(
+        mut self,
+        pattern: &str,
+        func: impl Fn(Request, RouteContext<D>) -> T + 'a,
+    ) -> Self
     where
         T: Future<Output = Result<Response>> + 'a,
     {
@@ -246,7 +268,11 @@ impl<'a, D: 'a> Router<'a, D> {
 
     /// Register an HTTP handler that will exclusively respond to PATCH requests. Enables the use of
     /// `async/await` syntax in the callback.
-    pub fn patch_async<T>(mut self, pattern: &str, func: fn(Request, RouteContext<D>) -> T) -> Self
+    pub fn patch_async<T>(
+        mut self,
+        pattern: &str,
+        func: impl Fn(Request, RouteContext<D>) -> T + 'a,
+    ) -> Self
     where
         T: Future<Output = Result<Response>> + 'a,
     {
@@ -260,7 +286,11 @@ impl<'a, D: 'a> Router<'a, D> {
 
     /// Register an HTTP handler that will exclusively respond to DELETE requests. Enables the use
     /// of `async/await` syntax in the callback.
-    pub fn delete_async<T>(mut self, pattern: &str, func: fn(Request, RouteContext<D>) -> T) -> Self
+    pub fn delete_async<T>(
+        mut self,
+        pattern: &str,
+        func: impl Fn(Request, RouteContext<D>) -> T + 'a,
+    ) -> Self
     where
         T: Future<Output = Result<Response>> + 'a,
     {
@@ -277,7 +307,7 @@ impl<'a, D: 'a> Router<'a, D> {
     pub fn options_async<T>(
         mut self,
         pattern: &str,
-        func: fn(Request, RouteContext<D>) -> T,
+        func: impl Fn(Request, RouteContext<D>) -> T + 'a,
     ) -> Self
     where
         T: Future<Output = Result<Response>> + 'a,
@@ -292,7 +322,11 @@ impl<'a, D: 'a> Router<'a, D> {
 
     /// Register an HTTP handler that will respond to any requests. Enables the use of `async/await`
     /// syntax in the callback.
-    pub fn on_async<T>(mut self, pattern: &str, func: fn(Request, RouteContext<D>) -> T) -> Self
+    pub fn on_async<T>(
+        mut self,
+        pattern: &str,
+        func: impl Fn(Request, RouteContext<D>) -> T + 'a,
+    ) -> Self
     where
         T: Future<Output = Result<Response>> + 'a,
     {
@@ -309,7 +343,7 @@ impl<'a, D: 'a> Router<'a, D> {
     pub fn or_else_any_method_async<T>(
         mut self,
         pattern: &str,
-        func: fn(Request, RouteContext<D>) -> T,
+        func: impl Fn(Request, RouteContext<D>) -> T + 'a,
     ) -> Self
     where
         T: Future<Output = Result<Response>> + 'a,

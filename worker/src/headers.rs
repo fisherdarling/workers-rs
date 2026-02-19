@@ -9,6 +9,7 @@ use std::{
 use http::{header::HeaderName, HeaderMap, HeaderValue};
 use js_sys::Array;
 use wasm_bindgen::JsValue;
+use worker_sys::ext::HeadersExt;
 
 /// A [Headers](https://developer.mozilla.org/en-US/docs/Web/API/Headers) representation used in
 /// Request and Response objects.
@@ -36,6 +37,11 @@ impl Headers {
         self.0.get(name).map_err(Error::from)
     }
 
+    /// Returns true if the headers object has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.keys().next().is_none()
+    }
+
     /// Returns a boolean stating whether a `Headers` object contains a certain header.
     /// Returns an error if the name is invalid (e.g. contains spaces)
     pub fn has(&self, name: &str) -> Result<bool> {
@@ -43,20 +49,20 @@ impl Headers {
     }
 
     /// Returns an error if the name is invalid (e.g. contains spaces)
-    pub fn append(&mut self, name: &str, value: &str) -> Result<()> {
+    pub fn append(&self, name: &str, value: &str) -> Result<()> {
         self.0.append(name, value).map_err(Error::from)
     }
 
     /// Sets a new value for an existing header inside a `Headers` object, or adds the header if it does not already exist.
     /// Returns an error if the name is invalid (e.g. contains spaces)
-    pub fn set(&mut self, name: &str, value: &str) -> Result<()> {
+    pub fn set(&self, name: &str, value: &str) -> Result<()> {
         self.0.set(name, value).map_err(Error::from)
     }
 
     /// Deletes a header from a `Headers` object.
     /// Returns an error if the name is invalid (e.g. contains spaces)
     /// or if the JS Headers object's guard is immutable (e.g. for an incoming request)
-    pub fn delete(&mut self, name: &str) -> Result<()> {
+    pub fn delete(&self, name: &str) -> Result<()> {
         self.0.delete(name).map_err(Error::from)
     }
 
@@ -90,6 +96,18 @@ impl Headers {
             // The values iterator.next() will always return a proper value containing a string
             .map(|a| a.unwrap().as_string().unwrap())
     }
+
+    /// Returns all the values of a header within a `Headers` object with a given name.
+    pub fn get_all(&self, name: &str) -> Result<Vec<String>> {
+        let array = self.0.get_all(name);
+        array
+            .iter()
+            .map(|v| {
+                v.as_string()
+                    .ok_or_else(|| Error::JsError("Invalid header value".into()))
+            })
+            .collect()
+    }
 }
 
 impl Default for Headers {
@@ -114,7 +132,7 @@ impl IntoIterator for &Headers {
 
 impl<T: AsRef<str>> FromIterator<(T, T)> for Headers {
     fn from_iter<U: IntoIterator<Item = (T, T)>>(iter: U) -> Self {
-        let mut headers = Headers::new();
+        let headers = Headers::new();
         iter.into_iter().for_each(|(name, value)| {
             headers.append(name.as_ref(), value.as_ref()).ok();
         });
@@ -124,7 +142,7 @@ impl<T: AsRef<str>> FromIterator<(T, T)> for Headers {
 
 impl<'a, T: AsRef<str>> FromIterator<&'a (T, T)> for Headers {
     fn from_iter<U: IntoIterator<Item = &'a (T, T)>>(iter: U) -> Self {
-        let mut headers = Headers::new();
+        let headers = Headers::new();
         iter.into_iter().for_each(|(name, value)| {
             headers.append(name.as_ref(), value.as_ref()).ok();
         });

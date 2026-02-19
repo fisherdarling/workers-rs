@@ -1,5 +1,6 @@
 #![allow(clippy::new_without_default)]
 #![allow(clippy::or_fun_call)]
+#![warn(missing_debug_implementations)]
 //! # Features
 //! ## `d1`
 //!
@@ -147,23 +148,23 @@ use std::result::Result as StdResult;
 
 #[doc(hidden)]
 pub use async_trait;
-#[doc(hidden)]
 pub use js_sys;
 pub use url::Url;
-#[doc(hidden)]
 pub use wasm_bindgen;
-#[doc(hidden)]
 pub use wasm_bindgen_futures;
-pub use worker_kv as kv;
+pub use web_sys;
 
 pub use cf::{Cf, CfResponseProperties, TlsClientAuth};
-pub use worker_macros::{durable_object, event, send};
+pub use worker_macros::{consume, durable_object, event, send};
 #[doc(hidden)]
 pub use worker_sys;
 pub use worker_sys::{console_debug, console_error, console_log, console_warn};
 
 pub use crate::abort::*;
+pub use crate::ai::*;
+pub use crate::analytics_engine::*;
 pub use crate::cache::{Cache, CacheDeletionOutcome, CacheKey};
+pub use crate::container::*;
 pub use crate::context::Context;
 pub use crate::cors::Cors;
 #[cfg(feature = "d1")]
@@ -180,25 +181,32 @@ pub use crate::global::Fetch;
 pub use crate::headers::Headers;
 pub use crate::http::Method;
 pub use crate::hyperdrive::*;
+pub use crate::kv::{KvError, KvStore};
 #[cfg(feature = "queue")]
 pub use crate::queue::*;
 pub use crate::r2::*;
+pub use crate::rate_limit::{RateLimitOutcome, RateLimiter};
 pub use crate::request::{FromRequest, Request};
 pub use crate::request_init::*;
 pub use crate::response::{EncodeBody, IntoResponse, Response, ResponseBody, ResponseBuilder};
 pub use crate::router::{RouteContext, RouteParams, Router};
 pub use crate::schedule::*;
+pub use crate::secret_store::SecretStore;
 pub use crate::socket::*;
 pub use crate::streams::*;
 pub use crate::version::*;
 pub use crate::websocket::*;
 
 mod abort;
+mod ai;
+mod analytics_engine;
 mod cache;
 mod cf;
+mod container;
 mod context;
 mod cors;
 pub mod crypto;
+pub mod panic_abort;
 // Require pub module for macro export
 #[cfg(feature = "d1")]
 /// **Requires** `d1` feature.
@@ -215,21 +223,41 @@ mod global;
 mod headers;
 mod http;
 mod hyperdrive;
+pub mod kv;
 #[cfg(feature = "queue")]
 mod queue;
 mod r2;
+mod rate_limit;
 mod request;
 mod request_init;
 mod response;
 mod router;
 mod schedule;
+mod secret_store;
 pub mod send;
 mod socket;
+mod sql;
 mod streams;
 mod version;
 mod websocket;
 
-pub type Result<T> = StdResult<T, error::Error>;
+/// A `Result` alias defaulting to [`Error`].
+pub type Result<T, E = error::Error> = StdResult<T, E>;
+
+// This module exists because we can't re-export a standalone `Ok` function at
+// the crate root. Doing so would shadow the built-in `Ok` pattern, breaking
+// `match` arms like `Ok(x) => ...` when users write `use worker::*`.
+/// Use `ok::Ok(value)` as a shorthand for `Result::<_, Error>::Ok(value)`.
+pub mod ok {
+    use super::*;
+
+    #[allow(non_snake_case)]
+    /// Returns `Result::Ok(value)` with `worker::Error` as the error type.
+    /// Use as `ok::Ok(value)` rather than importing this function directly.
+    pub fn Ok<T>(value: T) -> Result<T> {
+        Result::Ok(value)
+    }
+}
 
 #[cfg(feature = "http")]
 /// **Requires** `http` feature. A convenience Body type which wraps [`web_sys::ReadableStream`](web_sys::ReadableStream)
@@ -246,3 +274,5 @@ pub type HttpRequest = ::http::Request<http::body::Body>;
 #[cfg(feature = "http")]
 /// **Requires** `http` feature. Type alias for `http::Response<worker::Body>`.
 pub type HttpResponse = ::http::Response<http::body::Body>;
+
+pub use crate::sql::*;

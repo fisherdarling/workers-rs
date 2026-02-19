@@ -17,21 +17,26 @@ jobs:
       contents: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: chainguard-dev/actions/setup-gitsign@main
-      - name: Install cargo-release
-        uses: taiki-e/install-action@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v4
         with:
-          tool: cargo-release
+          submodules: true
+      - uses: chainguard-dev/actions/setup-gitsign@main
+      - uses: cargo-bins/cargo-binstall@main
+      - name: Install cargo-release
+        run: cargo binstall cargo-release -y
       - name: Update versions
         id: update_versions
         run: |
+          OLD_VERSION=$(cargo metadata --no-deps --format-version 1 | jq -rc '.packages[] | select(.name=="worker") | .version')
           cargo release version ${{ inputs.level }} --execute --no-confirm
           cargo update
           NEW_VERSION=$(cargo metadata --no-deps --format-version 1 | jq -rc '.packages[] | select(.name=="worker") | .version')
+          find templates | grep Cargo.toml | while read f; do sed -i -e "s/$OLD_VERSION/$NEW_VERSION/g" $f; done
           echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+      - name: Remove local patch references
+        run: |
+          sed -i 's|, path = "./wasm-bindgen[^"]*"||g' Cargo.toml
+          sed -i '/\[patch\.crates-io\]/,$d' Cargo.toml
       - name: Check semver
         uses: obi1kenobi/cargo-semver-checks-action@v2
         continue-on-error: true

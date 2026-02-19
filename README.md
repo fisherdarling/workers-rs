@@ -12,7 +12,7 @@ Read the [Notes and FAQ](#notes-and-faq)
 use worker::*;
 
 #[event(fetch)]
-pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Response> {
+pub async fn main(mut req: Request, env: Env, _ctx: worker::Context) -> Result<Response> {
     console_log!(
         "{} {}, located at: {:?}, within: {}",
         req.method().to_string(),
@@ -45,7 +45,7 @@ The project uses [wrangler](https://github.com/cloudflare/workers-sdk/tree/main/
 Use [cargo generate](https://github.com/cargo-generate/cargo-generate) to start from a template:
 
 ```bash
-$ cargo generate cloudflare/workers-rs
+cargo generate cloudflare/workers-rs
 ```
 
 There are several templates to chose from. You should see a new project layout with a `src/lib.rs`. 
@@ -182,8 +182,6 @@ use worker::*;
 
 #[event(fetch, respond_with_errors)]
 pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Response> {
-    utils::set_panic_hook();
-
     let router = Router::new();
 
     router
@@ -221,11 +219,10 @@ For more information about how to configure these bindings, see:
 ### Define a Durable Object in Rust
 
 To define a Durable Object using the `worker` crate you need to implement the `DurableObject` trait
-on your own struct. Additionally, the `#[durable_object]` attribute macro must be applied to _both_
-your struct definition and the trait `impl` block for it.
+on your own struct. Additionally, the `#[durable_object]` attribute macro must be applied to the struct definition.
 
 ```rust
-use worker::*;
+use worker::{durable_object, DurableObject, State, Env, Result, Request, Response};
 
 #[durable_object]
 pub struct Chatroom {
@@ -235,7 +232,6 @@ pub struct Chatroom {
     env: Env, // access `Env` across requests, use inside `fetch`
 }
 
-#[durable_object]
 impl DurableObject for Chatroom {
     fn new(state: State, env: Env) -> Self {
         Self {
@@ -246,7 +242,7 @@ impl DurableObject for Chatroom {
         }
     }
 
-    async fn fetch(&mut self, _req: Request) -> Result<Response> {
+    async fn fetch(&self, _req: Request) -> Result<Response> {
         // do some work when a worker makes a request to this DO
         Response::ok(&format!("{} active users.", self.users.len()))
     }
@@ -269,6 +265,66 @@ bindings = [
 [[migrations]]
 tag = "v1" # Should be unique for each entry
 new_classes = ["Chatroom"] # Array of new classes
+```
+
+### SQLite Storage in Durable Objects
+
+Durable Objects can use SQLite for persistent storage, providing a relational database interface. To enable SQLite storage, you need to use `new_sqlite_classes` in your migration and access the SQL storage through `state.storage().sql()`.
+
+```rust
+use worker::{durable_object, DurableObject, State, Env, Result, Request, Response, SqlStorage};
+
+#[durable_object]
+pub struct SqlCounter {
+    sql: SqlStorage,
+}
+
+impl DurableObject for SqlCounter {
+    fn new(state: State, _env: Env) -> Self {
+        let sql = state.storage().sql();
+        // Create table if it does not exist
+        sql.exec("CREATE TABLE IF NOT EXISTS counter(value INTEGER);", None)
+            .expect("create table");
+        Self { sql }
+    }
+
+    async fn fetch(&self, _req: Request) -> Result<Response> {
+        #[derive(serde::Deserialize)]
+        struct Row {
+            value: i32,
+        }
+
+        // Read current value
+        let rows: Vec<Row> = self
+            .sql
+            .exec("SELECT value FROM counter LIMIT 1;", None)?
+            .to_array()?;
+        let current = rows.get(0).map(|r| r.value).unwrap_or(0);
+        let next = current + 1;
+
+        // Update counter
+        self.sql.exec("DELETE FROM counter;", None)?;
+        self.sql
+            .exec("INSERT INTO counter(value) VALUES (?);", vec![next.into()])?;
+
+        Response::ok(format!("SQL counter is now {}", next))
+    }
+}
+```
+
+Configure your `wrangler.toml` to enable SQLite storage:
+
+```toml
+# ...
+
+[durable_objects]
+bindings = [
+  { name = "SQL_COUNTER", class_name = "SqlCounter" }
+]
+
+[[migrations]]
+tag = "v1" # Should be unique for each entry
+new_sqlite_classes = ["SqlCounter"] # Use new_sqlite_classes for SQLite-enabled objects
 ```
 
 - For more information about migrating your Durable Object as it changes, see the docs here:
@@ -389,7 +445,7 @@ In order to test your Rust worker locally, the best approach is to use
 [Miniflare](https://github.com/cloudflare/miniflare). However, because Miniflare
 is a Node package, you will need to write your end-to-end tests in JavaScript or
 TypeScript in your project. The official documentation for writing tests using
-Miniflare is [available here](https://miniflare.dev/testing). This documentation
+Miniflare is [available here](https://miniflare.dev). This documentation
 being focused on JavaScript / TypeScript codebase, you will need to configure
 as follows to make it work with your Rust-based, WASM-generated worker:
 
@@ -495,8 +551,7 @@ So give it a try, leave some feedback, and star the repo to encourage us to dedi
 resources to this kind of project.
 
 If this is interesting to you and you want to help out, we’d be happy to get outside contributors
-started. We know there are improvements to be made such as compatibility with popular Rust HTTP
-ecosystem types (we have an example conversion for [Headers](https://github.com/cloudflare/workers-rs/blob/3d5876a1aca0a649209152d1ffd52dae7bccda87/libworker/src/headers.rs#L131-L167) if you want to make one), implementing additional Web APIs, utility crates,
+started. We know there are improvements to be made such as implementing additional APIs, utility crates,
 and more. In fact, we’re always on the lookout for great engineers, and hiring for many open roles -
 please [take a look](https://www.cloudflare.com/careers/).
 
@@ -505,7 +560,7 @@ please [take a look](https://www.cloudflare.com/careers/).
 1. Can I deploy a Worker that uses `tokio` or `async_std` runtimes?
 
 - Currently no. All crates in your Worker project must compile to `wasm32-unknown-unknown` target,
-  which is more limited in some ways than targets for x86 and ARM64.
+  which is more limited in some ways than targets for x86 and ARM64. However, you should still be able to use runtime-agnostic primitives from those crates such as those from [tokio::sync](https://docs.rs/tokio/latest/tokio/sync/index.html#runtime-compatibility).
 
 2. The `worker` crate doesn't have _X_! Why not?
 
@@ -517,18 +572,6 @@ please [take a look](https://www.cloudflare.com/careers/).
 - We're working on solutions here, but in the meantime you'll need to minimize the number of crates
   your code depends on, or strip as much from the `.wasm` binary as possible. Here are some extra
   steps you can try: https://rustwasm.github.io/book/reference/code-size.html#optimizing-builds-for-code-size
-
-### ⚠️ Caveats
-
-1. Upgrading worker package to version `0.0.18` and higher
-
-- While upgrading your worker to version `0.0.18` an error "error[E0432]: unresolved import `crate::sys::IoSourceState`" can appear.
-  In this case, upgrade `package.edition` to `edition = "2021"` in `wrangler.toml`
-
-```toml
-[package]
-edition = "2021"
-```
 
 # Releasing
 

@@ -3,33 +3,80 @@ members = [
     "worker",
     "worker-build",
     "worker-macros",
-    "worker-sandbox",
+    "test",
     "worker-sys",
-    "worker-kv",
     "examples/*",
+    "test/container-echo",
 ]
-exclude = ["examples/coredump", "examples/axum", "templates/*"]
+exclude = [
+    "examples/coredump",
+    "examples/axum",
+    "templates/*",
+    "wasm-bindgen",
+    "generated",
+]
 resolver = "2"
 
 [workspace.dependencies]
-worker = { path = "./worker" }
-async-trait = "0.1.74"
-# TODO: Unpin after https://github.com/chronotope/chrono-tz/issues/152
-chrono = { version = "0.4.37", default-features = false, features = [
+async-trait = "0.1.88"
+cfg-if = "1.0.1"
+chrono = { version = "0.4.41", default-features = false, features = [
     "wasmbind",
 ] }
-futures-channel = "0.3.29"
-futures-util = { version = "0.3.29", default-features = false }
-http = "1.1.0"
-js-sys = "0.3.66"
-wasm-bindgen = "0.2.91"
-wasm-bindgen-cli-support = "0.2.91"
-wasm-bindgen-futures = "0.4.39"
-wasm-bindgen-macro-support = "0.2.91"
-wasm-bindgen-test = "0.3.39"
+futures-channel = "0.3.31"
+futures-util = { version = "0.3.31", default-features = false }
+http = "1.3"
+js-sys = { version = "0.3.83" }
+serde = { version = "1.0.164", features = ["derive"] }
+serde_json = "1.0.140"
+serde-wasm-bindgen = "0.6.5"
+syn = "2.0.17"
+proc-macro2 = "1.0.60"
+quote = "1.0.28"
+wasm-bindgen = { version = "0.2.108" }
+wasm-bindgen-cli-support = { version = "0.2.108" }
+wasm-bindgen-futures = { version = "0.4.58" }
+wasm-bindgen-macro-support = { version = "0.2.108" }
+wasm-bindgen-shared = { version = "0.2.108" }
+wasm-bindgen-test = { version = "0.3.48" }
+wasm-streams = { version = "0.5.0" }
+web-sys = { version = "0.3.85", features = [
+    "AbortController",
+    "AbortSignal",
+    "BinaryType",
+    "Blob",
+    "Cache",
+    "CacheQueryOptions",
+    "CacheStorage",
+    "CloseEvent",
+    "console",
+    "ErrorEvent",
+    "File",
+    "FormData",
+    "Headers",
+    "MessageEvent",
+    "ProgressEvent",
+    "ReadableStream",
+    "ReadableStreamDefaultReader",
+    "Request",
+    "RequestInit",
+    "RequestCache",
+    "RequestRedirect",
+    "Response",
+    "ResponseInit",
+    "TransformStream",
+    "WebSocket",
+    "WorkerGlobalScope",
+    "WritableStream",
+    "WritableStreamDefaultWriter",
+] }
+worker = { version = "0.7.4", path = "worker", features = ["queue", "d1", "axum", "timezone"] }
+worker-codegen = { path = "worker-codegen", version = "0.2.0" }
+worker-macros = { version = "0.7.4", path = "worker-macros", features = ["queue"] }
+worker-sys = { version = "0.7.4", path = "worker-sys", features = ["d1", "queue"] }
 
 [profile.release]
-# rustc supports two "optimize for size" levels:  opt-level = "s" and "z". 
+# rustc supports two "optimize for size" levels:  opt-level = "s" and "z".
 # These names were inherited from clang / LLVM and are not too descriptive
 # but "z" is meant to give the idea that it produces smaller binaries than "s".
 # https://docs.rust-embedded.org/book/unsorted/speed-vs-size.html#optimize-for-size
@@ -50,3 +97,15 @@ lto = true
 [profile.release.package."*"]
 codegen-units = 1
 opt-level = "z"
+
+# These are local patches we use to test against local wasm bindgen
+# We always align on the exact stable wasm bindgen version for releases
+[patch.crates-io]
+js-sys = { version = "0.3.85", path = './wasm-bindgen/crates/js-sys' }
+wasm-bindgen = { version = "0.2.108", path = './wasm-bindgen' }
+wasm-bindgen-cli-support = { version = "0.2.108", path = "./wasm-bindgen/crates/cli-support" }
+wasm-bindgen-futures = { version = "0.4.57", path = './wasm-bindgen/crates/futures' }
+wasm-bindgen-macro-support = { version = "0.2.108", path = "./wasm-bindgen/crates/macro-support" }
+wasm-bindgen-shared = { version = "0.2.108", path = "./wasm-bindgen/crates/shared" }
+wasm-bindgen-test = { version = "0.3.58", path = "./wasm-bindgen/crates/test" }
+web-sys = { version = "0.3.85", path = './wasm-bindgen/crates/web-sys' }
